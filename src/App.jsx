@@ -7,5 +7,5 @@ export default function App() {
 
   return isAuthenticated
     ? <Dashboard onLogout={logout} />
-    : <Login />
+    : <Login onLogin={() => {}} />
 }

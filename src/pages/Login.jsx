@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-export default function Login() {
+export default function Login({ onLogin }) {
   const auth = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -30,6 +30,7 @@ export default function Login() {
       }
 
       auth.login(data.token)
+      onLogin?.()
     } catch (err) {
       setError(err.message || 'Login failed.')
     } finally {
