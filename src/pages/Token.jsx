@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 export default function Token() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -11,6 +11,10 @@ export default function Token() {
   const [tokens, setTokens] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [editingBackendId, setEditingBackendId] = useState(null)
+  const [editingBackendValue, setEditingBackendValue] = useState('')
+  const [pingingId, setPingingId] = useState(null)
+  const [pingStatus, setPingStatus] = useState({})
 
   const openModal = () => {
     setMode('create')
@@ -41,13 +45,13 @@ export default function Token() {
     const loadTokens = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`${API_URL}/api/tokens`)
+        const res = await fetch(`${API_URL}/admin/tokens`)
         const data = await res.json()
         if (!res.ok) throw new Error(data?.error || 'Failed to load tokens')
         setTokens(data.map((item) => ({
           id: item.id,
           token: item.token,
-          backend: item.backend || '',
+          backend: item.backend_url || item.backend || '',
           date: item.expires_at ? new Date(item.expires_at).toISOString().slice(0, 10) : 'Never',
           state: item.status || 'active',
         })))
@@ -69,12 +73,12 @@ export default function Token() {
       const payload = {
         token: form.token || `tk-${Date.now()}`,
         owner_id: null,
-        backend: form.backend || '',
+        backend_url: form.backend || '',
         expires_at: form.expiresAt === 'Never' ? null : form.expiresAt ? Date.parse(form.expiresAt) : null,
         status: 'active',
       }
 
-      const res = await fetch(`${API_URL}/api/tokens`, {
+      const res = await fetch(`${API_URL}/admin/tokens`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -126,7 +130,7 @@ export default function Token() {
         status: selectedToken.state || 'active',
       }
 
-      const res = await fetch(`${API_URL}/api/tokens/${Number(selectedToken.id)}`, {
+      const res = await fetch(`${API_URL}/admin/tokens/${Number(selectedToken.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -159,7 +163,7 @@ export default function Token() {
 
   const deleteToken = async (tokenId) => {
     try {
-      const res = await fetch(`${API_URL}/api/tokens/${Number(tokenId)}`, { method: 'DELETE' })
+      const res = await fetch(`${API_URL}/admin/tokens/${Number(tokenId)}`, { method: 'DELETE' })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to delete token')
 
@@ -167,6 +171,82 @@ export default function Token() {
       closeDetailModal()
     } catch (err) {
       setError(err.message || 'Could not delete token')
+    }
+  }
+
+  const startEditBackendUrl = (tokenId, currentBackend) => {
+    setEditingBackendId(tokenId)
+    setEditingBackendValue(currentBackend)
+  }
+
+  const saveBackendUrl = async (tokenId) => {
+    try {
+      setError('')
+      const res = await fetch(`${API_URL}/admin/tokens/${Number(tokenId)}/backend-url`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backend_url: editingBackendValue }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Failed to update backend URL')
+
+      setTokens((prev) => prev.map((item) =>
+        item.id === tokenId ? { ...item, backend: editingBackendValue } : item
+      ))
+
+      setEditingBackendId(null)
+      setEditingBackendValue('')
+    } catch (err) {
+      setError(err.message || 'Could not update backend URL')
+    }
+  }
+
+  const cancelEditBackendUrl = () => {
+    setEditingBackendId(null)
+    setEditingBackendValue('')
+  }
+
+  const pingToken = async (tokenId) => {
+    try {
+      setError('')
+      setPingingId(tokenId)
+      
+      const res = await fetch(`${API_URL}/admin/tokens/${Number(tokenId)}/ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Ping failed')
+
+      setPingStatus((prev) => ({
+        ...prev,
+        [tokenId]: { success: true, message: data.message || 'Ping successful' },
+      }))
+
+      setTimeout(() => {
+        setPingStatus((prev) => {
+          const newStatus = { ...prev }
+          delete newStatus[tokenId]
+          return newStatus
+        })
+      }, 3000)
+    } catch (err) {
+      setPingStatus((prev) => ({
+        ...prev,
+        [tokenId]: { success: false, message: err.message || 'Ping failed' },
+      }))
+
+      setTimeout(() => {
+        setPingStatus((prev) => {
+          const newStatus = { ...prev }
+          delete newStatus[tokenId]
+          return newStatus
+        })
+      }, 3000)
+    } finally {
+      setPingingId(null)
     }
   }
 
@@ -201,7 +281,7 @@ export default function Token() {
                 <th className="px-4 py-4">Backend</th>
                 <th className="px-4 py-4">Expire Date</th>
                 <th className="px-4 py-4">State</th>
-                <th className="px-4 py-4">Action</th>
+                <th className="px-4 py-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -216,8 +296,44 @@ export default function Token() {
               ) : tokens.map((item) => (
                 <tr key={item.id} className="border-b border-white/10 hover:bg-white/5 transition">
                   <td className="px-4 py-4 text-slate-200">{item.id}</td>
-                  <td className="px-4 py-4 font-mono text-slate-100">{item.token}</td>
-                  <td className="px-4 py-4 text-slate-200">{item.backend}</td>
+                  <td className="px-4 py-4 font-mono text-slate-100 truncate">{item.token}</td>
+                  <td className="px-4 py-4">
+                    {editingBackendId === item.id ? (
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          value={editingBackendValue}
+                          onChange={(e) => setEditingBackendValue(e.target.value)}
+                          className="flex-1 rounded-lg border border-white/10 bg-[#0f1720] px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="https://..."
+                        />
+                        <button
+                          onClick={() => saveBackendUrl(item.id)}
+                          className="rounded-lg bg-green-500/20 border border-green-500/30 px-2.5 py-1.5 text-xs text-green-300 hover:bg-green-500/30 transition"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={cancelEditBackendUrl}
+                          className="rounded-lg bg-slate-500/20 border border-slate-500/30 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-500/30 transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-200 text-sm truncate" title={item.backend}>
+                          {item.backend || '—'}
+                        </span>
+                        <button
+                          onClick={() => startEditBackendUrl(item.id, item.backend)}
+                          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300 hover:bg-white/10 transition"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-4 text-slate-200">{item.date}</td>
                   <td className="px-4 py-4">
                     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${item.state === 'active' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>
@@ -225,18 +341,32 @@ export default function Token() {
                     </span>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => pingToken(item.id)}
+                        disabled={pingingId === item.id}
+                        className={`rounded-lg border px-3 py-1 text-xs font-semibold transition ${
+                          pingingId === item.id
+                            ? 'border-purple-500/30 bg-purple-500/10 text-purple-300 opacity-60 cursor-not-allowed'
+                            : 'border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20'
+                        }`}
+                      >
+                        {pingingId === item.id ? 'Pinging...' : 'Ping'}
+                      </button>
+                      {pingStatus[item.id] && (
+                        <span className={`rounded-lg px-2 py-1 text-xs ${
+                          pingStatus[item.id].success
+                            ? 'bg-green-500/10 text-green-300'
+                            : 'bg-red-500/10 text-red-300'
+                        }`}>
+                          {pingStatus[item.id].message}
+                        </span>
+                      )}
                       <button
                         onClick={() => openDetailModal(item)}
                         className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 hover:bg-white/10 transition"
                       >
                         View
-                      </button>
-                      <button
-                        onClick={() => openDetailModal(item)}
-                        className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs text-blue-300 hover:bg-blue-500/20 transition"
-                      >
-                        Edit
                       </button>
                       <button
                         onClick={() => deleteToken(item.id)}
@@ -353,6 +483,17 @@ export default function Token() {
             <div className="flex justify-end gap-3 pt-6">
               {mode !== 'edit' && (
                 <>
+                  <button
+                    onClick={() => pingToken(selectedToken.id)}
+                    disabled={pingingId === selectedToken.id}
+                    className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                      pingingId === selectedToken.id
+                        ? 'bg-purple-500/30 text-purple-300 opacity-60 cursor-not-allowed'
+                        : 'bg-purple-500 text-white hover:bg-purple-400'
+                    }`}
+                  >
+                    {pingingId === selectedToken.id ? 'Pinging...' : 'Ping Backend'}
+                  </button>
                   <button onClick={startEdit} className="rounded-2xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-400">
                     Edit
                   </button>
