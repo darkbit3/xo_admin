@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useAuthFetch } from '../utils/authFetch'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 export default function Balance() {
+  const authFetch = useAuthFetch()
   const [owners, setOwners] = useState([])
   const [transactions, setTransactions] = useState([])
   const [loadingOwners, setLoadingOwners] = useState(false)
@@ -15,7 +17,7 @@ export default function Balance() {
   async function loadOwners() {
     try {
       setLoadingOwners(true)
-      const res = await fetch(`${API_URL}/api/admin/owners`)
+      const res = await authFetch(`${API_URL}/api/admin/owners`)
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to load owners')
       setOwners(data.data || [])
@@ -29,7 +31,7 @@ export default function Balance() {
   async function loadTx() {
     try {
       setLoadingTx(true)
-      const res = await fetch(`${API_URL}/api/admin/transactions?limit=100`)
+      const res = await authFetch(`${API_URL}/api/admin/transactions?limit=100`)
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to load transactions')
       setTransactions(data.data || [])

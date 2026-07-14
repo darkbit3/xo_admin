@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useAuthFetch } from '../utils/authFetch'
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 export default function Token() {
+  const authFetch = useAuthFetch()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedToken, setSelectedToken] = useState(null)
@@ -45,7 +47,7 @@ export default function Token() {
     const loadTokens = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`${API_URL}/admin/tokens`)
+        const res = await authFetch(`${API_URL}/admin/tokens`)
         const data = await res.json()
         if (!res.ok) throw new Error(data?.error || 'Failed to load tokens')
         setTokens(data.map((item) => ({
@@ -63,7 +65,7 @@ export default function Token() {
     }
 
     loadTokens()
-  }, [])
+  }, [authFetch])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -78,9 +80,8 @@ export default function Token() {
         status: 'active',
       }
 
-      const res = await fetch(`${API_URL}/admin/tokens`, {
+      const res = await authFetch(`${API_URL}/admin/tokens`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
 
@@ -130,9 +131,8 @@ export default function Token() {
         status: selectedToken.state || 'active',
       }
 
-      const res = await fetch(`${API_URL}/admin/tokens/${Number(selectedToken.id)}`, {
+      const res = await authFetch(`${API_URL}/admin/tokens/${Number(selectedToken.id)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
 
@@ -163,7 +163,7 @@ export default function Token() {
 
   const deleteToken = async (tokenId) => {
     try {
-      const res = await fetch(`${API_URL}/admin/tokens/${Number(tokenId)}`, { method: 'DELETE' })
+      const res = await authFetch(`${API_URL}/admin/tokens/${Number(tokenId)}`, { method: 'DELETE' })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to delete token')
 
@@ -182,9 +182,8 @@ export default function Token() {
   const saveBackendUrl = async (tokenId) => {
     try {
       setError('')
-      const res = await fetch(`${API_URL}/admin/tokens/${Number(tokenId)}/backend-url`, {
+      const res = await authFetch(`${API_URL}/admin/tokens/${Number(tokenId)}/backend-url`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ backend_url: editingBackendValue }),
       })
 
@@ -212,9 +211,8 @@ export default function Token() {
       setError('')
       setPingingId(tokenId)
       
-      const res = await fetch(`${API_URL}/admin/tokens/${Number(tokenId)}/ping`, {
+      const res = await authFetch(`${API_URL}/admin/tokens/${Number(tokenId)}/ping`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       })
 
       const data = await res.json()

@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-export default function Login({ onLogin }) {
+export default function Login() {
+  const auth = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
@@ -27,7 +29,7 @@ export default function Login({ onLogin }) {
         throw new Error(data?.error || 'Invalid username or password.')
       }
 
-      onLogin()
+      auth.login(data.token)
     } catch (err) {
       setError(err.message || 'Login failed.')
     } finally {
